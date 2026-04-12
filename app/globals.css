@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-terracotta: #c67b5c;
+  --color-terracotta-dark: #b5651d;
+  --color-terracotta-light: #fce7d8;
+  --color-sand: #d4c4a8;
+  --color-sand-light: #f5e6d8;
+  --color-cream: #faf5ef;
+  --color-warm-white: #fffbf5;
+  --color-olive-dark: #44403c;
+  --color-olive-muted: #78716c;
+  --color-olive-light: #8a8279;
+  --color-border: #f5e6d8;
+
+  --color-lang: #4d7c0f;
+  --color-lang-bg: #ecfccb;
+  --color-lang-dark: #365314;
+  --color-gross: #9a5535;
+  --color-gross-bg: #fce7d8;
+  --color-fine: #4f46e5;
+  --color-fine-bg: #e0e7ff;
+
+  --font-heading: var(--font-caveat);
+  --font-body: var(--font-quicksand);
+
+  --radius-card: 20px;
+  --radius-button: 14px;
+  --radius-input: 12px;
+
+  --shadow-card: 0 2px 8px rgba(198, 123, 92, 0.08);
+  --shadow-card-hover: 0 6px 20px rgba(198, 123, 92, 0.12);
+  --shadow-button: 0 2px 6px rgba(198, 123, 92, 0.15);
+}
+
+html {
+  font-family: var(--font-body), sans-serif;
+}
+
+body {
+  background-color: var(--color-cream);
+  color: var(--color-olive-dark);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
