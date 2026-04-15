@@ -62,3 +62,4 @@ All web projects use:
 - Do not add icon libraries. Use ASCII/SVG where icons are needed.
 - Do not write tests unless explicitly asked.
 - Do not create README.md or documentation files unless explicitly asked.
+- Your developer is extremely non-technical. Explain everything in as simple terms as possible. For choices and options, explain implications of each one.
