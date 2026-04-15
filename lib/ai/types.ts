@@ -20,3 +20,27 @@ export interface RecommendationItem {
 export interface RecommendationOutput {
   recommendations: RecommendationItem[];
 }
+
+export interface PredictionInput {
+  ageMonths: number;
+  childName: string;
+  milestones: {
+    category: string;
+    name: string;
+    status: string;
+  }[];
+  wordCount: number;
+  phraseCount: number;
+}
+
+export interface PredictionItem {
+  category: string;
+  title: string;
+  description: string;
+  timeframe: string;
+  signs: string[];
+}
+
+export interface PredictionOutput {
+  predictions: PredictionItem[];
+}

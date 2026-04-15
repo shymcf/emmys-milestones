@@ -21,17 +21,20 @@ const categoryMeta: Record<
   fine_motor: { label: "Fine Motor", dotClass: "bg-fine" },
 };
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ child?: string }>;
+}) {
   const session = await auth();
+  const { child: selectedChildId } = await searchParams;
 
   const childList = await db
     .select()
     .from(children)
     .where(eq(children.userId, session!.user!.id!));
 
-  const child = childList[0];
-
-  if (!child) {
+  if (childList.length === 0) {
     return (
       <main className="min-h-dvh px-6 py-8">
         <div className="mx-auto max-w-sm">
@@ -59,6 +62,9 @@ export default async function DashboardPage() {
     );
   }
 
+  const child =
+    childList.find((c) => c.id === selectedChildId) || childList[0];
+
   const [categories, wordStats, recentActivity] = await Promise.all([
     getMilestonesByCategory(child.id),
     getWordStats(child.id),
@@ -77,11 +83,39 @@ export default async function DashboardPage() {
     <main className="min-h-dvh px-6 pt-8 pb-24">
       <div className="mx-auto max-w-sm">
         {/* Header */}
-        <div className="text-center mb-6">
+        <div className="text-center mb-4">
           <p className="font-[family-name:var(--font-heading)] text-sm text-terracotta tracking-wide">
             totter
           </p>
-          <h1 className="font-[family-name:var(--font-heading)] text-4xl text-olive-dark mt-1">
+        </div>
+
+        {/* Child switcher */}
+        <div className="flex items-center justify-center gap-2 mb-6 flex-wrap">
+          {childList.map((c) => (
+            <Link
+              key={c.id}
+              href={`/dashboard?child=${c.id}`}
+              className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-all duration-200 cursor-pointer ${
+                c.id === child.id
+                  ? "bg-terracotta text-white shadow-[var(--shadow-button)]"
+                  : "bg-sand-light text-olive-muted hover:bg-terracotta-light hover:text-terracotta"
+              }`}
+            >
+              {c.name}
+            </Link>
+          ))}
+          <Link
+            href="/children/new"
+            className="w-8 h-8 rounded-full bg-sand-light text-olive-muted flex items-center justify-center text-lg font-bold transition-all duration-200 hover:bg-terracotta-light hover:text-terracotta cursor-pointer"
+            title="Add child"
+          >
+            +
+          </Link>
+        </div>
+
+        {/* Child info */}
+        <div className="text-center mb-6">
+          <h1 className="font-[family-name:var(--font-heading)] text-4xl text-olive-dark">
             {child.name}
           </h1>
           <p className="text-olive-muted text-sm mt-1">
@@ -203,6 +237,33 @@ export default async function DashboardPage() {
             className="flex-1 rounded-[var(--radius-button)] border-2 border-sand-light bg-warm-white px-4 py-4 text-center font-semibold text-terracotta transition-all duration-200 hover:bg-terracotta-light cursor-pointer min-h-[52px]"
           >
             Get Tips
+          </Link>
+        </div>
+
+        {/* Timeline & Predictions */}
+        <div className="flex gap-3 mt-3">
+          <Link
+            href={`/children/${child.id}/timeline`}
+            className="flex-1 rounded-[var(--radius-card)] border border-sand-light bg-warm-white p-4 shadow-[var(--shadow-card)] transition-all duration-200 hover:shadow-[var(--shadow-card-hover)] hover:translate-y-[-2px] cursor-pointer flex items-center gap-3"
+          >
+            <div className="w-9 h-9 rounded-[12px] bg-sand-light flex items-center justify-center shrink-0">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b7355" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+            </div>
+            <span className="font-semibold text-olive-dark text-sm">Timeline</span>
+          </Link>
+          <Link
+            href={`/children/${child.id}/predictions`}
+            className="flex-1 rounded-[var(--radius-card)] border border-sand-light bg-warm-white p-4 shadow-[var(--shadow-card)] transition-all duration-200 hover:shadow-[var(--shadow-card-hover)] hover:translate-y-[-2px] cursor-pointer flex items-center gap-3"
+          >
+            <div className="w-9 h-9 rounded-[12px] bg-terracotta-light flex items-center justify-center shrink-0">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c2775e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+            </div>
+            <span className="font-semibold text-olive-dark text-sm">What&apos;s Next</span>
           </Link>
         </div>
 

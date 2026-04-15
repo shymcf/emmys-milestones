@@ -51,6 +51,7 @@ export const wordLogs = sqliteTable("word_logs", {
     .notNull()
     .references(() => children.id),
   word: text("word").notNull(),
+  type: text("type").notNull().default("word"),
   isPhrase: integer("is_phrase", { mode: "boolean" }).notNull().default(false),
   observedDate: text("observed_date").notNull(),
   createdAt: integer("created_at", { mode: "timestamp" })

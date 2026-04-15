@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { signOut } from "next-auth/react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 interface Child {
@@ -13,14 +14,16 @@ interface Child {
 
 export default function SettingsPage() {
   const router = useRouter();
-  const [child, setChild] = useState<Child | null>(null);
+  const [children, setChildren] = useState<Child[]>([]);
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetch("/api/children")
       .then((res) => res.json())
       .then((data) => {
-        if (data.data && data.data.length > 0) {
-          setChild(data.data[0]);
+        if (data.data) {
+          setChildren(data.data);
         }
       });
   }, []);
@@ -40,35 +43,88 @@ export default function SettingsPage() {
           </h1>
         </div>
 
-        {/* Child info */}
-        {child && (
-          <div className="rounded-[var(--radius-card)] border border-sand-light bg-warm-white p-5 shadow-[var(--shadow-card)] mb-4">
-            <h2 className="font-semibold text-olive-dark mb-2">
-              {child.name}
-            </h2>
-            <p className="text-sm text-olive-muted">
-              Born{" "}
-              {new Date(child.dateOfBirth + "T00:00:00").toLocaleDateString("en-US", {
-                month: "long",
-                day: "numeric",
-                year: "numeric",
-              })}
-            </p>
-          </div>
-        )}
+        {/* Children list */}
+        <h2 className="text-xs font-bold text-olive-light uppercase tracking-wider mb-3">
+          Children
+        </h2>
+        <div className="flex flex-col gap-3 mb-4">
+          {children.map((child) => (
+            <div
+              key={child.id}
+              className="rounded-[var(--radius-card)] border border-sand-light bg-warm-white p-5 shadow-[var(--shadow-card)]"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold text-olive-dark">{child.name}</h3>
+              </div>
+              <p className="text-sm text-olive-muted mb-3">
+                Born{" "}
+                {new Date(child.dateOfBirth + "T00:00:00").toLocaleDateString(
+                  "en-US",
+                  { month: "long", day: "numeric", year: "numeric" }
+                )}
+              </p>
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => router.push(`/children/${child.id}/quiz`)}
+                  className="text-sm font-semibold text-terracotta hover:text-terracotta-dark cursor-pointer"
+                >
+                  Retake quiz
+                </button>
+                <button
+                  onClick={() => setConfirmingDelete(child.id)}
+                  className="text-sm font-semibold text-red-400 hover:text-red-600 cursor-pointer"
+                >
+                  Remove
+                </button>
+              </div>
+              {confirmingDelete === child.id && (
+                <div className="mt-3 pt-3 border-t border-sand-light">
+                  <p className="text-sm text-olive-muted mb-3">
+                    Remove {child.name} and all their milestones? This can&apos;t
+                    be undone.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        setDeleting(true);
+                        const res = await fetch("/api/children", {
+                          method: "DELETE",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ childId: child.id }),
+                        });
+                        if (res.ok) {
+                          setChildren((prev) =>
+                            prev.filter((c) => c.id !== child.id)
+                          );
+                        }
+                        setDeleting(false);
+                        setConfirmingDelete(null);
+                      }}
+                      disabled={deleting}
+                      className="rounded-[var(--radius-button)] bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600 disabled:opacity-50 cursor-pointer"
+                    >
+                      {deleting ? "Removing..." : "Yes, remove"}
+                    </button>
+                    <button
+                      onClick={() => setConfirmingDelete(null)}
+                      className="rounded-[var(--radius-button)] bg-sand-light px-4 py-2 text-sm font-semibold text-olive-muted hover:bg-sand cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
 
-        {/* Retake quiz */}
-        {child && (
-          <button
-            onClick={() => router.push(`/children/${child.id}/quiz`)}
-            className="w-full rounded-[var(--radius-card)] border border-sand-light bg-warm-white p-5 shadow-[var(--shadow-card)] mb-4 text-left cursor-pointer hover:shadow-[var(--shadow-card-hover)] transition-all duration-200"
-          >
-            <p className="font-semibold text-olive-dark">Retake quiz</p>
-            <p className="text-sm text-olive-muted mt-1">
-              Re-assess milestones with a fresh set of questions.
-            </p>
-          </button>
-        )}
+        {/* Add child */}
+        <Link
+          href="/children/new"
+          className="flex items-center justify-center gap-2 w-full rounded-[var(--radius-card)] border-2 border-dashed border-sand-light p-4 text-sm font-semibold text-olive-muted transition-all duration-200 hover:border-terracotta hover:text-terracotta cursor-pointer mb-6"
+        >
+          + Add another child
+        </Link>
 
         {/* Logout */}
         <button

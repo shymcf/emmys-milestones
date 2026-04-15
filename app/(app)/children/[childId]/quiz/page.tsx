@@ -22,15 +22,29 @@ export default function QuizPage() {
   >([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [bracketMax, setBracketMax] = useState(0);
+  const [advancing, setAdvancing] = useState(false);
+  const [totalAnswered, setTotalAnswered] = useState(0);
 
   useEffect(() => {
     fetch(`/api/children/${childId}/quiz`)
       .then((res) => res.json())
       .then((data) => {
         setQuestions(data.data.questions);
+        setBracketMax(data.data.bracketMax);
         setLoading(false);
       });
   }, [childId]);
+
+  async function submitAnswers(
+    answersToSubmit: { questionId: string; answer: string }[]
+  ) {
+    await fetch(`/api/children/${childId}/quiz`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ answers: answersToSubmit }),
+    });
+  }
 
   async function handleAnswer(answer: "yes" | "no") {
     const question = questions[currentIndex];
@@ -39,15 +53,37 @@ export default function QuizPage() {
 
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(currentIndex + 1);
-    } else {
-      setSubmitting(true);
-      await fetch(`/api/children/${childId}/quiz`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answers: newAnswers }),
-      });
-      router.push("/dashboard");
+      return;
     }
+
+    // Finished current batch — submit these answers
+    setSubmitting(true);
+    await submitAnswers(newAnswers);
+
+    const allYes = newAnswers.every((a) => a.answer === "yes");
+
+    if (allYes) {
+      // Try loading the next bracket
+      setAdvancing(true);
+      const res = await fetch(
+        `/api/children/${childId}/quiz?after=${bracketMax}`
+      );
+      const data = await res.json();
+      const nextQuestions: QuizQuestion[] = data.data.questions;
+
+      if (nextQuestions.length > 0) {
+        setTotalAnswered((prev) => prev + newAnswers.length);
+        setQuestions(nextQuestions);
+        setBracketMax(data.data.bracketMax);
+        setCurrentIndex(0);
+        setAnswers([]);
+        setSubmitting(false);
+        setAdvancing(false);
+        return;
+      }
+    }
+
+    router.push("/dashboard");
   }
 
   if (loading) {
@@ -76,14 +112,22 @@ export default function QuizPage() {
 
   if (submitting) {
     return (
-      <main className="flex min-h-dvh items-center justify-center">
-        <p className="text-olive-muted">Saving your answers...</p>
+      <main className="flex min-h-dvh items-center justify-center px-6">
+        <div className="text-center">
+          <p className="text-olive-muted">
+            {advancing
+              ? "Great job! Loading more questions..."
+              : "Saving your answers..."}
+          </p>
+        </div>
       </main>
     );
   }
 
   const question = questions[currentIndex];
-  const progress = ((currentIndex + 1) / questions.length) * 100;
+  const displayIndex = totalAnswered + currentIndex + 1;
+  const displayTotal = totalAnswered + questions.length;
+  const progress = (displayIndex / displayTotal) * 100;
 
   const categoryLabels: Record<string, string> = {
     language: "Language",
@@ -104,7 +148,8 @@ export default function QuizPage() {
         <div className="mb-8">
           <div className="flex justify-between text-xs text-olive-light mb-2">
             <span>
-              {currentIndex + 1} of {questions.length}
+              {displayIndex} of {displayTotal}
+              {totalAnswered > 0 ? "+" : ""}
             </span>
             <span>{Math.round(progress)}%</span>
           </div>

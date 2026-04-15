@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { children } from "@/lib/db/schema";
-import { getQuestionsForAge, processQuizResults } from "@/lib/quiz/engine";
+import { children, milestones } from "@/lib/db/schema";
+import {
+  getQuestionsForAge,
+  getQuestionsForNextBracket,
+  getBracketMaxForAge,
+  processQuizResults,
+} from "@/lib/quiz/engine";
 import { getAgeInMonths } from "@/lib/utils";
 
 const quizAnswerSchema = z.object({
@@ -39,9 +44,34 @@ export async function GET(
   }
 
   const ageMonths = getAgeInMonths(child.dateOfBirth);
-  const questions = getQuestionsForAge(ageMonths);
+  const afterParam = _request.nextUrl.searchParams.get("after");
 
-  return NextResponse.json({ data: { questions, ageMonths } });
+  let questions;
+  let bracketMax: number;
+
+  if (afterParam) {
+    questions = getQuestionsForNextBracket(Number(afterParam));
+    bracketMax = questions.length > 0 ? questions[0].maxMonths : Number(afterParam);
+  } else {
+    questions = getQuestionsForAge(ageMonths);
+    bracketMax = getBracketMaxForAge(ageMonths);
+  }
+
+  // Filter out questions whose milestone is already "consistently" achieved
+  const consistentMilestones = await db
+    .select({ name: milestones.name })
+    .from(milestones)
+    .where(
+      and(
+        eq(milestones.childId, childId),
+        eq(milestones.status, "consistently")
+      )
+    );
+
+  const consistentNames = new Set(consistentMilestones.map((m) => m.name));
+  questions = questions.filter((q) => !consistentNames.has(q.milestoneIfYes));
+
+  return NextResponse.json({ data: { questions, ageMonths, bracketMax } });
 }
 
 export async function POST(
