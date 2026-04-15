@@ -11,8 +11,6 @@ interface MilestoneRecord {
   status: string;
 }
 
-const statusOptions = ["not_yet", "sometimes", "consistently"] as const;
-
 const statusLabels: Record<string, string> = {
   not_yet: "Not yet",
   sometimes: "Sometimes",
@@ -39,10 +37,13 @@ export default function MotorCategoryPage() {
   const [checklist, setChecklist] = useState<string[]>([]);
   const [statuses, setStatuses] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [assessMode, setAssessMode] = useState(false);
+  const [assessList, setAssessList] = useState<string[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     async function load() {
-      // Fetch existing milestones
       const res = await fetch(
         `/api/children/${childId}/milestones?category=${category}`
       );
@@ -53,14 +54,11 @@ export default function MotorCategoryPage() {
         existing[m.name] = m.status;
       }
 
-      // Fetch checklist items from the quiz questions to infer what markers exist
-      // We'll use all known markers for this category
       const allNames = new Set<string>();
       for (const m of data.data as MilestoneRecord[]) {
         allNames.add(m.name);
       }
 
-      // Also fetch the full checklist from the API
       const checklistRes = await fetch(
         `/api/children/${childId}/milestones/checklist?category=${category}`
       );
@@ -78,6 +76,8 @@ export default function MotorCategoryPage() {
     load();
   }, [childId, category]);
 
+  const statusOptions = ["not_yet", "sometimes", "consistently"] as const;
+
   async function toggleStatus(name: string) {
     const current = statuses[name] || "not_yet";
     const currentIdx = statusOptions.indexOf(
@@ -94,6 +94,42 @@ export default function MotorCategoryPage() {
     });
   }
 
+  function startAssessment() {
+    const remaining = checklist.filter(
+      (name) => statuses[name] !== "consistently"
+    );
+    setAssessList(remaining);
+    setCurrentIndex(0);
+    setAssessMode(true);
+  }
+
+  async function handleAnswer(name: string, status: string) {
+    setSaving(true);
+    setStatuses((prev) => ({ ...prev, [name]: status }));
+
+    await fetch(`/api/children/${childId}/milestones`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, category, status }),
+    });
+
+    setSaving(false);
+
+    if (currentIndex < assessList.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+    } else {
+      setAssessMode(false);
+      setCurrentIndex(0);
+    }
+  }
+
+  const achievedCount = Object.values(statuses).filter(
+    (s) => s === "consistently"
+  ).length;
+  const sometimesCount = Object.values(statuses).filter(
+    (s) => s === "sometimes"
+  ).length;
+
   return (
     <main className="min-h-dvh px-6 pt-8 pb-24">
       <div className="mx-auto max-w-sm">
@@ -108,9 +144,6 @@ export default function MotorCategoryPage() {
           <h1 className="font-[family-name:var(--font-heading)] text-3xl text-olive-dark">
             {categoryLabels[category] || category}
           </h1>
-          <p className="text-olive-muted text-sm mt-1">
-            Tap to cycle: Not yet → Sometimes → Consistently
-          </p>
         </div>
 
         {/* Switch between gross/fine */}
@@ -118,9 +151,10 @@ export default function MotorCategoryPage() {
           {["gross_motor", "fine_motor"].map((cat) => (
             <button
               key={cat}
-              onClick={() =>
-                router.push(`/children/${childId}/motor/${cat}`)
-              }
+              onClick={() => {
+                router.push(`/children/${childId}/motor/${cat}`);
+                setAssessMode(false);
+              }}
               className={`flex-1 rounded-[var(--radius-input)] px-4 py-3 text-sm font-semibold transition-all duration-200 cursor-pointer min-h-[44px] ${
                 category === cat
                   ? "bg-terracotta text-white"
@@ -132,7 +166,6 @@ export default function MotorCategoryPage() {
           ))}
         </div>
 
-        {/* Checklist */}
         {loading ? (
           <p className="text-olive-muted text-center">Loading...</p>
         ) : checklist.length === 0 ? (
@@ -141,27 +174,133 @@ export default function MotorCategoryPage() {
               Complete the onboarding quiz to populate milestones.
             </p>
           </div>
+        ) : assessMode ? (
+          /* Questionnaire mode */
+          <div>
+            {/* Progress */}
+            <div className="mb-6">
+              <div className="flex justify-between text-xs text-olive-light mb-2">
+                <span>
+                  {currentIndex + 1} of {assessList.length}
+                </span>
+                <span>
+                  {Math.round(((currentIndex + 1) / assessList.length) * 100)}%
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-sand-light overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-terracotta transition-all duration-300"
+                  style={{
+                    width: `${((currentIndex + 1) / assessList.length) * 100}%`,
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Question card */}
+            <div className="rounded-[var(--radius-card)] border border-sand-light bg-warm-white p-6 shadow-[var(--shadow-card)] mb-6">
+              <p className="text-lg font-semibold text-olive-dark leading-relaxed">
+                Is your child: {assessList[currentIndex]}?
+              </p>
+              {statuses[assessList[currentIndex]] && (
+                <p className="text-sm text-olive-muted mt-2">
+                  Currently:{" "}
+                  {statusLabels[statuses[assessList[currentIndex]]]}
+                </p>
+              )}
+            </div>
+
+            {/* Answer buttons */}
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() =>
+                  handleAnswer(assessList[currentIndex], "consistently")
+                }
+                disabled={saving}
+                className="w-full rounded-[var(--radius-button)] bg-terracotta px-6 py-4 font-semibold text-white shadow-[var(--shadow-button)] transition-all duration-200 hover:bg-terracotta-dark disabled:opacity-50 cursor-pointer min-h-[52px]"
+              >
+                Yes, consistently!
+              </button>
+              <button
+                onClick={() =>
+                  handleAnswer(assessList[currentIndex], "sometimes")
+                }
+                disabled={saving}
+                className="w-full rounded-[var(--radius-button)] border-2 border-sand-light bg-warm-white px-6 py-4 font-semibold text-olive-dark transition-all duration-200 hover:bg-sand-light disabled:opacity-50 cursor-pointer min-h-[52px]"
+              >
+                Sometimes
+              </button>
+              <button
+                onClick={() =>
+                  handleAnswer(assessList[currentIndex], "not_yet")
+                }
+                disabled={saving}
+                className="w-full rounded-[var(--radius-button)] border-2 border-sand-light bg-warm-white px-6 py-4 font-semibold text-olive-muted transition-all duration-200 hover:bg-sand-light disabled:opacity-50 cursor-pointer min-h-[52px]"
+              >
+                Not yet
+              </button>
+            </div>
+
+            <button
+              onClick={() => {
+                setAssessMode(false);
+                setCurrentIndex(0);
+              }}
+              className="w-full mt-4 text-sm text-olive-muted hover:text-olive-dark cursor-pointer text-center py-2"
+            >
+              Exit assessment
+            </button>
+          </div>
         ) : (
-          <div className="flex flex-col gap-2">
-            {checklist.map((name) => {
-              const status = statuses[name] || "not_yet";
-              return (
+          /* Summary view */
+          <div>
+            {/* Summary stats */}
+            <div className="rounded-[var(--radius-card)] border border-sand-light bg-warm-white p-4 mb-4 shadow-[var(--shadow-card)]">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold text-olive-dark">
+                    {achievedCount} achieved
+                    {sometimesCount > 0 &&
+                      ` · ${sometimesCount} sometimes`}
+                  </p>
+                  <p className="text-xs text-olive-muted mt-0.5">
+                    {checklist.length} milestones total
+                  </p>
+                </div>
                 <button
-                  key={name}
-                  onClick={() => toggleStatus(name)}
-                  className="flex items-center justify-between rounded-[var(--radius-card)] border border-sand-light bg-warm-white p-4 transition-all duration-200 hover:shadow-[var(--shadow-card)] cursor-pointer text-left min-h-[52px]"
+                  onClick={startAssessment}
+                  className="rounded-[var(--radius-button)] bg-terracotta px-4 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-button)] transition-all duration-200 hover:bg-terracotta-dark cursor-pointer"
                 >
-                  <span className="text-sm text-olive-dark font-medium flex-1 pr-3">
-                    {name}
-                  </span>
-                  <span
-                    className={`text-xs font-semibold rounded-full px-3 py-1 whitespace-nowrap ${statusColors[status]}`}
-                  >
-                    {statusLabels[status]}
-                  </span>
+                  Assess
                 </button>
-              );
-            })}
+              </div>
+            </div>
+
+            {/* Milestone list */}
+            <p className="text-olive-muted text-xs mb-2">
+              Tap a milestone to change its status.
+            </p>
+            <div className="flex flex-col gap-2">
+              {checklist.map((name) => {
+                const status = statuses[name] || "not_yet";
+                return (
+                  <button
+                    key={name}
+                    onClick={() => toggleStatus(name)}
+                    className="flex items-center justify-between rounded-[var(--radius-card)] border border-sand-light bg-warm-white p-4 min-h-[52px] transition-all duration-200 hover:shadow-[var(--shadow-card)] cursor-pointer text-left"
+                  >
+                    <span className="text-sm text-olive-dark font-medium flex-1 pr-3">
+                      {name}
+                    </span>
+                    <span
+                      className={`text-xs font-semibold rounded-full px-3 py-1 whitespace-nowrap ${statusColors[status]}`}
+                    >
+                      {statusLabels[status]}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
