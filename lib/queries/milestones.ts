@@ -18,7 +18,7 @@ export async function getMilestonesByCategory(
     .select({
       category: milestones.category,
       status: milestones.status,
-      count: sql<number>`count(*)`,
+      count: sql<number>`count(*)::int`,
     })
     .from(milestones)
     .where(eq(milestones.childId, childId))
@@ -47,17 +47,17 @@ export async function getMilestonesByCategory(
 }
 
 export async function getWordStats(childId: string) {
-  const words = await db
-    .select({ count: sql<number>`count(*)` })
+  const [words] = await db
+    .select({ count: sql<number>`count(*)::int` })
     .from(wordLogs)
     .where(and(eq(wordLogs.childId, childId), eq(wordLogs.isPhrase, false)))
-    .get();
+    .limit(1);
 
-  const phrases = await db
-    .select({ count: sql<number>`count(*)` })
+  const [phrases] = await db
+    .select({ count: sql<number>`count(*)::int` })
     .from(wordLogs)
     .where(and(eq(wordLogs.childId, childId), eq(wordLogs.isPhrase, true)))
-    .get();
+    .limit(1);
 
   return {
     wordCount: words?.count ?? 0,

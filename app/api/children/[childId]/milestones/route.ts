@@ -27,11 +27,11 @@ export async function GET(
 
   const { childId } = await params;
 
-  const child = await db
+  const [child] = await db
     .select()
     .from(children)
     .where(eq(children.id, childId))
-    .get();
+    .limit(1);
 
   if (!child || child.userId !== session.user.id) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -63,11 +63,11 @@ export async function POST(
 
   const { childId } = await params;
 
-  const child = await db
+  const [child] = await db
     .select()
     .from(children)
     .where(eq(children.id, childId))
-    .get();
+    .limit(1);
 
   if (!child || child.userId !== session.user.id) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -79,7 +79,7 @@ export async function POST(
       updateMilestoneSchema.parse(body);
 
     // Check if milestone already exists
-    const existing = await db
+    const [existing] = await db
       .select()
       .from(milestones)
       .where(
@@ -89,7 +89,7 @@ export async function POST(
           eq(milestones.category, category)
         )
       )
-      .get();
+      .limit(1);
 
     if (existing) {
       // Update status

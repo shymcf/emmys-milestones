@@ -75,11 +75,11 @@ export async function DELETE(request: NextRequest) {
     const body = await request.json();
     const { childId } = deleteChildSchema.parse(body);
 
-    const child = await db
+    const [child] = await db
       .select()
       .from(children)
       .where(and(eq(children.id, childId), eq(children.userId, session.user.id)))
-      .get();
+      .limit(1);
 
     if (!child) {
       return NextResponse.json({ error: "Child not found" }, { status: 404 });

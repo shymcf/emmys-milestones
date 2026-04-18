@@ -16,11 +16,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { email, password } = signupSchema.parse(body);
 
-    const existing = await db
+    const [existing] = await db
       .select({ id: users.id })
       .from(users)
       .where(eq(users.email, email))
-      .get();
+      .limit(1);
 
     if (existing) {
       return NextResponse.json(

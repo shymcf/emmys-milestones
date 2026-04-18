@@ -31,10 +31,10 @@ export default function SignupPage() {
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        setError(data.error || "Something went wrong");
+        setError(data?.error || `Server error (${res.status})`);
         return;
       }
 

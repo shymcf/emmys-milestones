@@ -19,11 +19,11 @@ export async function GET(
 
   const { childId } = await params;
 
-  const child = await db
+  const [child] = await db
     .select()
     .from(children)
     .where(eq(children.id, childId))
-    .get();
+    .limit(1);
 
   if (!child || child.userId !== session.user.id) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });

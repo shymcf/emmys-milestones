@@ -1,89 +1,81 @@
-import crypto from "crypto";
+import {
+  pgTable,
+  uuid,
+  text,
+  timestamp,
+  boolean,
+} from "drizzle-orm/pg-core";
 
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
-
-export const users = sqliteTable("users", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
+export const users = pgTable("users", {
+  id: uuid("id").primaryKey().defaultRandom(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" })
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .notNull()
-    .$defaultFn(() => new Date()),
+    .defaultNow(),
 });
 
-export const children = sqliteTable("children", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  userId: text("user_id")
+export const children = pgTable("children", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
     .notNull()
-    .references(() => users.id),
+    .references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   dateOfBirth: text("date_of_birth").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" })
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .notNull()
-    .$defaultFn(() => new Date()),
+    .defaultNow(),
 });
 
-export const milestones = sqliteTable("milestones", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  childId: text("child_id")
+export const milestones = pgTable("milestones", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  childId: uuid("child_id")
     .notNull()
-    .references(() => children.id),
+    .references(() => children.id, { onDelete: "cascade" }),
   category: text("category").notNull(),
   name: text("name").notNull(),
   status: text("status").notNull().default("not_yet"),
   observedDate: text("observed_date"),
-  createdAt: integer("created_at", { mode: "timestamp" })
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .notNull()
-    .$defaultFn(() => new Date()),
+    .defaultNow(),
 });
 
-export const wordLogs = sqliteTable("word_logs", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  childId: text("child_id")
+export const wordLogs = pgTable("word_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  childId: uuid("child_id")
     .notNull()
-    .references(() => children.id),
+    .references(() => children.id, { onDelete: "cascade" }),
   word: text("word").notNull(),
   type: text("type").notNull().default("word"),
-  isPhrase: integer("is_phrase", { mode: "boolean" }).notNull().default(false),
+  isPhrase: boolean("is_phrase").notNull().default(false),
   observedDate: text("observed_date").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" })
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
     .notNull()
-    .$defaultFn(() => new Date()),
+    .defaultNow(),
 });
 
-export const quizResponses = sqliteTable("quiz_responses", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  childId: text("child_id")
+export const quizResponses = pgTable("quiz_responses", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  childId: uuid("child_id")
     .notNull()
-    .references(() => children.id),
+    .references(() => children.id, { onDelete: "cascade" }),
   questionId: text("question_id").notNull(),
   answer: text("answer").notNull(),
-  completedAt: integer("completed_at", { mode: "timestamp" })
+  completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" })
     .notNull()
-    .$defaultFn(() => new Date()),
+    .defaultNow(),
 });
 
-export const recommendations = sqliteTable("recommendations", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  childId: text("child_id")
+export const recommendations = pgTable("recommendations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  childId: uuid("child_id")
     .notNull()
-    .references(() => children.id),
+    .references(() => children.id, { onDelete: "cascade" }),
   category: text("category").notNull(),
   content: text("content").notNull(),
-  generatedAt: integer("generated_at", { mode: "timestamp" })
+  generatedAt: timestamp("generated_at", { withTimezone: true, mode: "date" })
     .notNull()
-    .$defaultFn(() => new Date()),
+    .defaultNow(),
   contextSnapshot: text("context_snapshot"),
 });
