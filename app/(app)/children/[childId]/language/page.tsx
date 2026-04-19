@@ -15,6 +15,7 @@ interface WordEntry {
 }
 
 type TabType = "words" | "gestures";
+type SortType = "date" | "alpha";
 
 const suggestedWords: { minMonths: number; maxMonths: number; words: string[] }[] = [
   { minMonths: 0, maxMonths: 5, words: ["mama", "dada", "baba"] },
@@ -34,14 +35,41 @@ const suggestedGestures: { minMonths: number; maxMonths: number; gestures: strin
   { minMonths: 24, maxMonths: 36, gestures: ["holding up fingers for age", "hugging dolls/stuffed animals", "taking turns in games"] },
 ];
 
-function getSuggestionsForAge(ageMonths: number): string[] {
-  const bracket = suggestedWords.find((b) => ageMonths >= b.minMonths && ageMonths <= b.maxMonths);
-  return bracket?.words ?? suggestedWords[suggestedWords.length - 1].words;
-}
+const MIN_SUGGESTIONS = 20;
 
-function getGesturesForAge(ageMonths: number): string[] {
-  const bracket = suggestedGestures.find((b) => ageMonths >= b.minMonths && ageMonths <= b.maxMonths);
-  return bracket?.gestures ?? suggestedGestures[suggestedGestures.length - 1].gestures;
+function buildSuggestions(
+  brackets: { minMonths: number; maxMonths: number; items: string[] }[],
+  ageMonths: number,
+  excluded: Set<string>,
+  minCount: number
+): string[] {
+  const currentIdx = brackets.findIndex(
+    (b) => ageMonths >= b.minMonths && ageMonths <= b.maxMonths
+  );
+  const startIdx = currentIdx === -1 ? brackets.length - 1 : currentIdx;
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  const tryAdd = (idx: number) => {
+    if (idx < 0 || idx >= brackets.length) return;
+    for (const item of brackets[idx].items) {
+      const key = item.toLowerCase();
+      if (seen.has(key) || excluded.has(key)) continue;
+      seen.add(key);
+      result.push(item);
+    }
+  };
+
+  // Always include current bracket first.
+  tryAdd(startIdx);
+  // Expand outward (younger first, then older) until we hit minCount.
+  for (let offset = 1; result.length < minCount && offset < brackets.length; offset++) {
+    tryAdd(startIdx - offset);
+    if (result.length >= minCount) break;
+    tryAdd(startIdx + offset);
+  }
+
+  return result;
 }
 
 export default function LanguagePage() {
@@ -50,6 +78,7 @@ export default function LanguagePage() {
   const childId = params.childId as string;
 
   const [activeTab, setActiveTab] = useState<TabType>("words");
+  const [sortBy, setSortBy] = useState<SortType>("date");
   const [words, setWords] = useState<WordEntry[]>([]);
   const [gestures, setGestures] = useState<WordEntry[]>([]);
   const [ageMonths, setAgeMonths] = useState(12);
@@ -57,6 +86,7 @@ export default function LanguagePage() {
   const [showModal, setShowModal] = useState(false);
   const [newWord, setNewWord] = useState("");
   const [selectedSuggestions, setSelectedSuggestions] = useState<Set<string>>(new Set());
+  const [recentlyAdded, setRecentlyAdded] = useState<string[]>([]);
   const [isPhrase, setIsPhrase] = useState(false);
   const [observedDate, setObservedDate] = useState(
     new Date().toISOString().split("T")[0]
@@ -141,14 +171,25 @@ export default function LanguagePage() {
 
     setNewWord("");
     setSelectedSuggestions(new Set());
-    setIsPhrase(false);
-    setShowModal(false);
+    setRecentlyAdded((prev) => [...itemsToAdd, ...prev]);
     setSubmitting(false);
     await fetchAll();
     router.refresh();
   }
 
+  function closeModal() {
+    setShowModal(false);
+    setNewWord("");
+    setSelectedSuggestions(new Set());
+    setIsPhrase(false);
+    setRecentlyAdded([]);
+  }
+
   const currentItems = activeTab === "words" ? words : gestures;
+  const trimmedNewWord = newWord.trim().toLowerCase();
+  const isDuplicate =
+    trimmedNewWord.length > 0 &&
+    currentItems.some((w) => w.word.toLowerCase() === trimmedNewWord);
   const wordCount = words.filter((w) => !w.isPhrase).length;
   const phraseCount = words.filter((w) => w.isPhrase).length;
   const gestureCount = gestures.length;
@@ -166,9 +207,20 @@ export default function LanguagePage() {
 
   const sortedMonths = Object.keys(grouped).sort().reverse();
 
+  const excluded = new Set(currentItems.map((w) => w.word.toLowerCase()));
   const suggestions = activeTab === "words"
-    ? getSuggestionsForAge(ageMonths).filter((s) => !words.some((w) => w.word.toLowerCase() === s.toLowerCase()))
-    : getGesturesForAge(ageMonths).filter((s) => !gestures.some((g) => g.word.toLowerCase() === s.toLowerCase()));
+    ? buildSuggestions(
+        suggestedWords.map((b) => ({ minMonths: b.minMonths, maxMonths: b.maxMonths, items: b.words })),
+        ageMonths,
+        excluded,
+        MIN_SUGGESTIONS
+      )
+    : buildSuggestions(
+        suggestedGestures.map((b) => ({ minMonths: b.minMonths, maxMonths: b.maxMonths, items: b.gestures })),
+        ageMonths,
+        excluded,
+        MIN_SUGGESTIONS
+      );
 
   return (
     <main className="min-h-dvh px-6 pt-8 pb-24">
@@ -190,6 +242,7 @@ export default function LanguagePage() {
             onClick={() => {
               setSelectedSuggestions(new Set());
               setNewWord("");
+              setRecentlyAdded([]);
               setShowModal(true);
             }}
             className="w-11 h-11 rounded-full bg-terracotta text-white flex items-center justify-center text-xl shadow-[var(--shadow-button)] hover:bg-terracotta-dark transition-all duration-200 cursor-pointer"
@@ -237,6 +290,33 @@ export default function LanguagePage() {
           )}
         </div>
 
+        {/* Sort toggle */}
+        {currentItems.length > 0 && (
+          <div className="flex items-center justify-end gap-1 mb-3">
+            <span className="text-xs text-olive-light mr-1">Sort:</span>
+            <button
+              onClick={() => setSortBy("date")}
+              className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-all duration-200 cursor-pointer ${
+                sortBy === "date"
+                  ? "bg-sand-light text-olive-dark"
+                  : "text-olive-muted hover:text-olive-dark"
+              }`}
+            >
+              Date
+            </button>
+            <button
+              onClick={() => setSortBy("alpha")}
+              className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-all duration-200 cursor-pointer ${
+                sortBy === "alpha"
+                  ? "bg-sand-light text-olive-dark"
+                  : "text-olive-muted hover:text-olive-dark"
+              }`}
+            >
+              A–Z
+            </button>
+          </div>
+        )}
+
         {/* Item list */}
         {loading ? (
           <p className="text-olive-muted text-center">Loading...</p>
@@ -248,6 +328,43 @@ export default function LanguagePage() {
             <p className="text-olive-light text-sm">
               Tap + to add your child&apos;s first {activeTab === "words" ? "word" : "gesture"}
             </p>
+          </div>
+        ) : sortBy === "alpha" ? (
+          <div>
+            {[...currentItems]
+              .sort((a, b) => a.word.toLowerCase().localeCompare(b.word.toLowerCase()))
+              .map((w) => (
+                <div
+                  key={w.id}
+                  className="flex items-center justify-between py-3 border-b border-sand-light last:border-0 group"
+                >
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    {w.isPhrase && (
+                      <span className="text-xs bg-lang-bg text-lang rounded-full px-2 py-0.5 font-semibold shrink-0">
+                        phrase
+                      </span>
+                    )}
+                    <span className="text-olive-dark font-medium truncate">
+                      {w.isPhrase ? `"${w.word}"` : w.word}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs text-olive-muted">
+                      {new Date(w.observedDate + "T00:00:00").toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </span>
+                    <button
+                      onClick={() => handleDelete(w.id)}
+                      className="w-6 h-6 rounded-full text-olive-light hover:bg-red-50 hover:text-red-500 flex items-center justify-center text-sm transition-colors duration-200 cursor-pointer"
+                      title="Remove"
+                    >
+                      x
+                    </button>
+                  </div>
+                </div>
+              ))}
           </div>
         ) : (
           sortedMonths.map((month) => {
@@ -304,13 +421,33 @@ export default function LanguagePage() {
         <div className="fixed inset-0 z-50 flex items-end justify-center">
           <div
             className="absolute inset-0 bg-black/30 backdrop-blur-sm"
-            onClick={() => setShowModal(false)}
+            onClick={closeModal}
           />
           <div className="relative w-full max-w-sm bg-warm-white rounded-t-[24px] p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
             <div className="w-10 h-1 bg-sand rounded-full mx-auto mb-4" />
             <h2 className="font-[family-name:var(--font-heading)] text-2xl text-olive-dark mb-4">
               Add {activeTab === "words" ? "a word" : "a gesture"}
             </h2>
+
+            {/* Recently added in this session */}
+            {recentlyAdded.length > 0 && (
+              <div className="mb-4 rounded-[var(--radius-input)] bg-lang-bg/40 px-3 py-2.5">
+                <p className="text-xs font-bold text-olive-light uppercase tracking-wider mb-1.5">
+                  Added ({recentlyAdded.length})
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {recentlyAdded.map((item, i) => (
+                    <span
+                      key={`${item}-${i}`}
+                      className="rounded-full bg-warm-white px-2.5 py-0.5 text-xs font-medium text-olive-dark"
+                    >
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleAdd} className="flex flex-col gap-4">
               {/* Suggested items */}
               {(activeTab === "gestures" || !isPhrase) && suggestions.length > 0 && (
@@ -337,19 +474,30 @@ export default function LanguagePage() {
                 </div>
               )}
 
-              <input
-                type="text"
-                value={newWord}
-                onChange={(e) => setNewWord(e.target.value)}
-                placeholder={
-                  activeTab === "gestures"
-                    ? "Or type a custom gesture..."
-                    : isPhrase
-                      ? '"more milk"'
-                      : "Or type a custom word..."
-                }
-                className="w-full rounded-[var(--radius-input)] border border-sand-light bg-cream px-4 py-3 text-olive-dark placeholder:text-olive-light focus:border-terracotta focus:outline-none focus:ring-2 focus:ring-terracotta/20"
-              />
+              <div>
+                <input
+                  type="text"
+                  value={newWord}
+                  onChange={(e) => setNewWord(e.target.value)}
+                  placeholder={
+                    activeTab === "gestures"
+                      ? "Or type a custom gesture..."
+                      : isPhrase
+                        ? '"more milk"'
+                        : "Or type a custom word..."
+                  }
+                  className={`w-full rounded-[var(--radius-input)] border bg-cream px-4 py-3 text-olive-dark placeholder:text-olive-light focus:outline-none focus:ring-2 ${
+                    isDuplicate
+                      ? "border-amber-400 focus:border-amber-500 focus:ring-amber-500/20"
+                      : "border-sand-light focus:border-terracotta focus:ring-terracotta/20"
+                  }`}
+                />
+                {isDuplicate && (
+                  <p className="mt-1.5 text-xs text-amber-700">
+                    &ldquo;{newWord.trim()}&rdquo; is already on the list.
+                  </p>
+                )}
+              </div>
 
               <div className="flex items-center gap-3">
                 {activeTab === "words" && (
@@ -377,17 +525,34 @@ export default function LanguagePage() {
                 />
               </div>
 
-              <button
-                type="submit"
-                disabled={submitting || (selectedSuggestions.size === 0 && !newWord.trim())}
-                className="w-full rounded-[var(--radius-button)] bg-terracotta px-6 py-4 font-semibold text-white shadow-[var(--shadow-button)] transition-all duration-200 hover:bg-terracotta-dark disabled:opacity-50 cursor-pointer min-h-[52px]"
-              >
-                {submitting
-                  ? "Adding..."
-                  : selectedSuggestions.size > 0
-                    ? `Add ${selectedSuggestions.size + (newWord.trim() ? 1 : 0)} ${activeTab === "words" ? "word" : "gesture"}${selectedSuggestions.size + (newWord.trim() ? 1 : 0) !== 1 ? "s" : ""}`
-                    : "Add"}
-              </button>
+              <div className="flex gap-2">
+                {recentlyAdded.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="flex-1 rounded-[var(--radius-button)] border-2 border-sand-light bg-warm-white px-4 py-4 font-semibold text-olive-dark transition-all duration-200 hover:bg-sand-light cursor-pointer min-h-[52px]"
+                  >
+                    Done
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  disabled={
+                    submitting ||
+                    (selectedSuggestions.size === 0 && !newWord.trim()) ||
+                    isDuplicate
+                  }
+                  className="flex-1 rounded-[var(--radius-button)] bg-terracotta px-6 py-4 font-semibold text-white shadow-[var(--shadow-button)] transition-all duration-200 hover:bg-terracotta-dark disabled:opacity-50 cursor-pointer min-h-[52px]"
+                >
+                  {submitting
+                    ? "Adding..."
+                    : selectedSuggestions.size > 0
+                      ? `Add ${selectedSuggestions.size + (newWord.trim() ? 1 : 0)}`
+                      : recentlyAdded.length > 0
+                        ? "Add another"
+                        : "Add"}
+                </button>
+              </div>
             </form>
           </div>
         </div>

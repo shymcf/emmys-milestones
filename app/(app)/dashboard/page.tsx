@@ -144,6 +144,7 @@ export default async function DashboardPage({
             <p className="text-sm text-olive-muted ml-12">
               {wordStats.wordCount} word{wordStats.wordCount !== 1 ? "s" : ""}
               {wordStats.phraseCount > 0 && ` · ${wordStats.phraseCount} phrase${wordStats.phraseCount !== 1 ? "s" : ""}`}
+              {wordStats.gestureCount > 0 && ` · ${wordStats.gestureCount} gesture${wordStats.gestureCount !== 1 ? "s" : ""}`}
             </p>
             {categorySummaries.language && (
               <div className="ml-12 mt-2">
