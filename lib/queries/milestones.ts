@@ -50,18 +50,37 @@ export async function getWordStats(childId: string) {
   const [words] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(wordLogs)
-    .where(and(eq(wordLogs.childId, childId), eq(wordLogs.isPhrase, false)))
+    .where(
+      and(
+        eq(wordLogs.childId, childId),
+        eq(wordLogs.type, "word"),
+        eq(wordLogs.isPhrase, false)
+      )
+    )
     .limit(1);
 
   const [phrases] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(wordLogs)
-    .where(and(eq(wordLogs.childId, childId), eq(wordLogs.isPhrase, true)))
+    .where(
+      and(
+        eq(wordLogs.childId, childId),
+        eq(wordLogs.type, "word"),
+        eq(wordLogs.isPhrase, true)
+      )
+    )
+    .limit(1);
+
+  const [gestures] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(wordLogs)
+    .where(and(eq(wordLogs.childId, childId), eq(wordLogs.type, "gesture")))
     .limit(1);
 
   return {
     wordCount: words?.count ?? 0,
     phraseCount: phrases?.count ?? 0,
+    gestureCount: gestures?.count ?? 0,
   };
 }
 
