@@ -19,7 +19,7 @@ Live owner: Drew McFarland.
 - **React 19**
 - **TypeScript** strict mode (no `any`)
 - **Tailwind CSS v4** (utility classes; no CSS modules / styled-components)
-- **Drizzle ORM** + **libsql** (SQLite, file-based — `totter.db` in repo root)
+- **Drizzle ORM** + **node-postgres** (Postgres — connection via `DATABASE_URL`). Note: the repo originally used SQLite (`totter.db`); migrated to Postgres in commit `14d31e5`. The `totter.db` file is a stale artifact and can be ignored.
 - **NextAuth v5 beta** with Credentials provider (bcryptjs hashed passwords, JWT sessions)
 - **Anthropic SDK** (Claude Haiku) — currently disabled, on the back burner
 
@@ -95,11 +95,11 @@ Every protected API route under `/api/children/[childId]/*` must:
 
 ## Database
 
-- SQLite file `totter.db` at repo root.
-- Schema in `lib/db/schema.ts`. Tables: `users`, `children`, `milestones`, `wordLogs`, `quizResponses`, `recommendations`.
-- Apply schema changes with `npx drizzle-kit push`.
-- Dates stored as `text` in `YYYY-MM-DD` format (not native DATE).
-- Foreign keys exist via `.references()` but **no `onDelete: "cascade"` is configured** — cascade is done manually in `/api/children` DELETE.
+- Postgres via `node-postgres`; connection string in `DATABASE_URL`.
+- Schema in `lib/db/schema.ts` (`pg-core`). Tables: `users`, `children`, `milestones`, `wordLogs`, `quizResponses`, `recommendations`.
+- Apply schema changes with `npx drizzle-kit push` (or `generate` then `migrate` for explicit migrations).
+- Dates stored as `text` in `YYYY-MM-DD` format (helpers `parseDateOnly` / `formatDateOnly` in `lib/utils.ts`).
+- All child-scoped FKs use `onDelete: "cascade"`. Cascade is automatic — DELETE handlers should NOT manually delete children rows.
 
 ---
 
