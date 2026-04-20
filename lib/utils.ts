@@ -23,3 +23,14 @@ export function formatAge(dateOfBirth: string): string {
 export function todayISO(): string {
   return new Date().toISOString().split("T")[0];
 }
+
+export function parseDateOnly(s: string): Date {
+  return new Date(s + "T00:00:00");
+}
+
+export function formatDateOnly(s: string, opts?: Intl.DateTimeFormatOptions): string {
+  return parseDateOnly(s).toLocaleDateString(
+    "en-US",
+    opts ?? { month: "short", day: "numeric" }
+  );
+}

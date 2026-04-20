@@ -1,3 +1,5 @@
+import "@/lib/env";
+
 import { Pool } from "pg";
 import { drizzle, NodePgDatabase } from "drizzle-orm/node-postgres";
 
